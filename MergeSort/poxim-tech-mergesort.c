@@ -16,9 +16,10 @@ void lerDadosEntrada(FILE* arquivo, Registro** lista1, int* tam1, Registro** lis
 void ordenarLista(Registro lista[], int tamanho);
 void mergeSort(Registro vetor[], Registro aux[], int index_inic, int index_fim);
 void merge(Registro vetor[], Registro aux[], int index_inic, int index_mid, int index_fim);
+int compararRegistros(const void* a, const void* b);
 void processarListas(FILE* saida_cnpj, FILE* saida_peso, 
-                     Registro lista1[], int tam1, 
-                     Registro lista2[], int tam2);
+                     Registro lista_mestre_original[], int tam_mestre, 
+                     Registro lista_inspecao_ordenada[], int tam_inspecao);
 void copiarArquivo(FILE* destino, FILE* origem);
 
 int main() {
@@ -41,9 +42,8 @@ int main() {
     fclose(arquivo_entrada);
     printf("Dados lidos com sucesso.\n");
 
-    ordenarLista(minhaLista1, tamanho_lista1);
     ordenarLista(minhaLista2, tamanho_lista2);
-    printf("Ambas as listas ordenadas por codigo.\n");
+    printf("Lista de inspecao ordenada por codigo.\n");
 
     saida_cnpj_tmp = fopen("saida_cnpj.tmp", "w");
     saida_peso_tmp = fopen("saida_peso.tmp", "w");
@@ -162,19 +162,29 @@ void copiarArquivo(FILE* destino, FILE* origem) {
     }
 }
 
+int compararRegistros(const void* a, const void* b) {
+    const char* codigo_chave = (const char*)a;
+    const Registro* registro_elemento = (const Registro*)b;
+    return strcmp(codigo_chave, registro_elemento->codigo);
+}
+
 void processarListas(FILE* saida_cnpj, FILE* saida_peso, 
-                     Registro lista1[], int tam1, 
-                     Registro lista2[], int tam2) {
-    int i = 0;
-    int j = 0;
+                     Registro lista_mestre_original[], int tam_mestre, 
+                     Registro lista_inspecao_ordenada[], int tam_inspecao) {
+    
+    for (int i = 0; i < tam_mestre; i++) {
+        Registro* item_mestre = &lista_mestre_original[i];
 
-    while (i < tam1 && j < tam2) {
-        int cmp = strcmp(lista1[i].codigo, lista2[j].codigo);
+        Registro* item_inspecionado = (Registro*) bsearch(
+            item_mestre->codigo,
+            lista_inspecao_ordenada,
+            tam_inspecao,
+            sizeof(Registro),
+            compararRegistros
+        );
 
-        if (cmp == 0) {
-            Registro* item_mestre = &lista1[i];
-            Registro* item_inspecionado = &lista2[j];
-
+        if (item_inspecionado != NULL) {
+            
             if (strcmp(item_mestre->cnpj, item_inspecionado->cnpj) != 0) {
                 fprintf(saida_cnpj, "%s:%s<->%s\n", 
                         item_mestre->codigo, 
@@ -193,6 +203,7 @@ void processarListas(FILE* saida_cnpj, FILE* saida_peso,
                     }
                 } else {
                     double percent_diff = ((double)diff_peso_abs / peso_original) * 100.0;
+                    
                     if (percent_diff > 10.0) {
                         fprintf(saida_peso, "%s:%dkg(%d%%)\n", 
                                 item_mestre->codigo, 
@@ -201,12 +212,6 @@ void processarListas(FILE* saida_cnpj, FILE* saida_peso,
                     }
                 }
             }
-            i++;
-            j++;
-        } else if (cmp < 0) {
-            i++;
-        } else {
-            j++;
         }
     }
 }
