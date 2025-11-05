@@ -7,7 +7,8 @@ void trocar(int* a, int* b) {
     *b = temp;
 }
 
-int hoare(int* vetor, int index_esq, int index_dir) {
+/* HOARE PADRÃO */
+int hoare_padrao(int* vetor, int index_esq, int index_dir) {
   int pivo_hoare = vetor[index_esq], cont_esq = index_esq - 1, cont_dir = index_dir + 1;
   
   while (1) {
@@ -22,14 +23,15 @@ int hoare(int* vetor, int index_esq, int index_dir) {
   }
 }
 
-void quicksort_hoare(int* vetor, int index_esq, int index_dir) {
+void quicksort_hoare_padrao(int* vetor, int index_esq, int index_dir) {
   if (index_esq < index_dir) {
-    int pivo = hoare(vetor, index_esq, index_dir);
+    int pivo = hoare_padrao(vetor, index_esq, index_dir);
 
-    quicksort_hoare(vetor, index_esq, pivo);
-    quicksort_hoare(vetor, pivo + 1, index_dir);
+    quicksort_hoare_padrao(vetor, index_esq, pivo);
+    quicksort_hoare_padrao(vetor, pivo + 1, index_dir);
   }
 }
+/* HOARE PADRÃO */
 
 int main() {
   int vetor[10] = {23, 32, 54, 92, 74, 23, 1, 43, 63, 12};
@@ -42,7 +44,7 @@ int main() {
     }
     printf("\n");
 
-  quicksort_hoare(vetor, 0, n - 1);
+  quicksort_hoare_padrao(vetor, 0, n - 1);
 
   printf("Vetor ordenado: ");
   for (int i = 0; i < n; i++) {

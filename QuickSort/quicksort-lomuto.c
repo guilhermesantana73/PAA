@@ -7,7 +7,8 @@ void trocar(int* a, int* b) {
     *b = temp;
 }
 
-int lomuto(int* vetor, int index_esq, int index_dir) {
+/* LOMUTO PADRÃO */
+int lomuto_padrao(int* vetor, int index_esq, int index_dir) {
   int pivo_lomuto = vetor[index_dir], cont_esq = index_esq - 1, cont_dir = index_dir + 1;
 
   for(cont_dir = index_esq; cont_dir < index_dir; cont_dir++) {
@@ -21,14 +22,15 @@ int lomuto(int* vetor, int index_esq, int index_dir) {
   return cont_esq;
 }
 
-void quicksort_lomuto(int* vetor, int index_esq, int index_dir) {
+void quicksort_lomuto_padrao(int* vetor, int index_esq, int index_dir) {
   if (index_esq < index_dir) {
-    int pivo = lomuto(vetor, index_esq, index_dir);
+    int pivo = lomuto_padrao(vetor, index_esq, index_dir);
 
-    quicksort_lomuto(vetor, index_esq, pivo - 1);
-    quicksort_lomuto(vetor, pivo + 1, index_dir);
+    quicksort_lomuto_padrao(vetor, index_esq, pivo - 1);
+    quicksort_lomuto_padrao(vetor, pivo + 1, index_dir);
   }
 }
+/* LOMUTO PADRÃO */
 
 int main() {
   int vetor[10] = {23, 32, 54, 92, 74, 23, 1, 43, 63, 12};
@@ -41,7 +43,7 @@ int main() {
     }
     printf("\n");
 
-  quicksort_lomuto(vetor, 0, n - 1);
+  quicksort_lomuto_padrao(vetor, 0, n - 1);
 
   printf("Vetor ordenado: ");
   for (int i = 0; i < n; i++) {
