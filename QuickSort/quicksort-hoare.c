@@ -25,10 +25,10 @@ int hoare_padrao(int* vetor, int index_esq, int index_dir) {
 
 void quicksort_hoare_padrao(int* vetor, int index_esq, int index_dir) {
   if (index_esq < index_dir) {
-    int pivo = hoare_padrao(vetor, index_esq, index_dir);
+    int particao = hoare_padrao(vetor, index_esq, index_dir);
 
-    quicksort_hoare_padrao(vetor, index_esq, pivo);
-    quicksort_hoare_padrao(vetor, pivo + 1, index_dir);
+    quicksort_hoare_padrao(vetor, index_esq, particao);
+    quicksort_hoare_padrao(vetor, particao + 1, index_dir);
   }
 }
 /* HOARE PADRÃO */

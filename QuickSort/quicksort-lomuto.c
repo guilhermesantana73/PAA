@@ -24,10 +24,10 @@ int lomuto_padrao(int* vetor, int index_esq, int index_dir) {
 
 void quicksort_lomuto_padrao(int* vetor, int index_esq, int index_dir) {
   if (index_esq < index_dir) {
-    int pivo = lomuto_padrao(vetor, index_esq, index_dir);
+    int particao = lomuto_padrao(vetor, index_esq, index_dir);
 
-    quicksort_lomuto_padrao(vetor, index_esq, pivo - 1);
-    quicksort_lomuto_padrao(vetor, pivo + 1, index_dir);
+    quicksort_lomuto_padrao(vetor, index_esq, particao - 1);
+    quicksort_lomuto_padrao(vetor, particao + 1, index_dir);
   }
 }
 /* LOMUTO PADRÃO */
