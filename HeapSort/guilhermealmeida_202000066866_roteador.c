@@ -5,14 +5,14 @@
 typedef struct {
     int prioridade;
     int tamanho;
-    int id_chegada;
-    char** dados;
+    int id_chegada; 
+    char** dados;   
 } Pacote;
 
 void trocar(Pacote* a, Pacote* b);
-void max_heapify(Pacote* vetor, int tamanho_heap, int i);
-void build_max_heap(Pacote* vetor, int n);
-void heapsort(Pacote* vetor, int n);
+void min_heapify(Pacote* vetor, int tamanho_heap, int i);
+void build_min_heap(Pacote* vetor, int n);
+void heapsort_decrescente(Pacote* vetor, int n);
 void liberar_pacote(Pacote* p);
 void imprimir_buffer(FILE* saida, Pacote* buffer, int n);
 
@@ -56,12 +56,12 @@ int main(int argc, char *argv[]) {
 
         novo_pacote.dados = (char**)malloc(novo_pacote.tamanho * sizeof(char*));
         for (int j = 0; j < novo_pacote.tamanho; j++) {
-            novo_pacote.dados[j] = (char*)malloc(4 * sizeof(char)); // "FF" + \0
+            novo_pacote.dados[j] = (char*)malloc(4 * sizeof(char)); 
             fscanf(entrada, "%s", novo_pacote.dados[j]);
         }
 
         if (carga_atual + novo_pacote.tamanho > capacidade_maxima) {
-            heapsort(buffer, qtd_no_buffer);
+            heapsort_decrescente(buffer, qtd_no_buffer);
             imprimir_buffer(saida, buffer, qtd_no_buffer);
 
             for (int k = 0; k < qtd_no_buffer; k++) {
@@ -77,7 +77,7 @@ int main(int argc, char *argv[]) {
     }
 
     if (qtd_no_buffer > 0) {
-        heapsort(buffer, qtd_no_buffer);
+        heapsort_decrescente(buffer, qtd_no_buffer);
         imprimir_buffer(saida, buffer, qtd_no_buffer);
         for (int k = 0; k < qtd_no_buffer; k++) {
             liberar_pacote(&buffer[k]);
@@ -97,41 +97,51 @@ void trocar(Pacote* a, Pacote* b) {
     *b = temp;
 }
 
-void max_heapify(Pacote* vetor, int tamanho_heap, int i) {
-    int maior = i;
+void min_heapify(Pacote* vetor, int tamanho_heap, int i) {
+    int menor = i;
     int esq = 2 * i + 1;
     int dir = 2 * i + 2;
 
     if (esq < tamanho_heap) {
-        if (vetor[esq].prioridade > vetor[maior].prioridade) {
-            maior = esq;
+        if (vetor[esq].prioridade < vetor[menor].prioridade) {
+            menor = esq;
+        } 
+        else if (vetor[esq].prioridade == vetor[menor].prioridade) {
+             if (vetor[esq].id_chegada > vetor[menor].id_chegada) {
+                 menor = esq;
+             }
         }
     }
 
     if (dir < tamanho_heap) {
-        if (vetor[dir].prioridade > vetor[maior].prioridade) {
-            maior = dir;
+        if (vetor[dir].prioridade < vetor[menor].prioridade) {
+            menor = dir;
+        }
+        else if (vetor[dir].prioridade == vetor[menor].prioridade) {
+             if (vetor[dir].id_chegada > vetor[menor].id_chegada) {
+                 menor = dir;
+             }
         }
     }
 
-    if (maior != i) {
-        trocar(&vetor[i], &vetor[maior]);
-        max_heapify(vetor, tamanho_heap, maior);
+    if (menor != i) {
+        trocar(&vetor[i], &vetor[menor]);
+        min_heapify(vetor, tamanho_heap, menor);
     }
 }
 
-void build_max_heap(Pacote* vetor, int n) {
+void build_min_heap(Pacote* vetor, int n) {
     for (int i = n / 2 - 1; i >= 0; i--) {
-        max_heapify(vetor, n, i);
+        min_heapify(vetor, n, i);
     }
 }
 
-void heapsort(Pacote* vetor, int n) {
-    build_max_heap(vetor, n);
+void heapsort_decrescente(Pacote* vetor, int n) {
+    build_min_heap(vetor, n);
 
     for (int i = n - 1; i > 0; i--) {
         trocar(&vetor[0], &vetor[i]);
-        max_heapify(vetor, i, 0);
+        min_heapify(vetor, i, 0); 
     }
 }
 
@@ -145,7 +155,7 @@ void liberar_pacote(Pacote* p) {
 void imprimir_buffer(FILE* saida, Pacote* buffer, int n) {
     fprintf(saida, "|");
     
-    for (int i = n - 1; i >= 0; i--) {
+    for (int i = 0; i < n; i++) {
         for (int j = 0; j < buffer[i].tamanho; j++) {
             fprintf(saida, "%s", buffer[i].dados[j]);
             if (j < buffer[i].tamanho - 1) {
