@@ -16,109 +16,109 @@ typedef struct {
     int foi_usado; 
 } Pacote;
 
-double max_double(double a, double b) {
-    return (a > b) ? a : b;
+int comparar_codigos(Pacote* lista, int a, int b) {
+    return strcmp(lista[a].codigo, lista[b].codigo);
 }
 
-void resolver_mochila_3d(Veiculo caminhao, Pacote* lista_pacotes, int total_pacotes, FILE* saida) {
-    
-    int max_peso = caminhao.cap_peso;
-    int max_vol = caminhao.cap_vol;
+void quicksort_indices(Pacote* lista, int* arr, int left, int right) {
+    int i = left, j = right;
+    int pivot = arr[(left + right) / 2];
 
-    int tamanho_tabela = (total_pacotes + 1) * (max_peso + 1) * (max_vol + 1);
-    double* tabela = (double*)calloc(tamanho_tabela, sizeof(double));
-
-    if (tabela == NULL) {
-        fprintf(stderr, "Erro: Memoria insuficiente.\n");
-        return;
+    while (i <= j) {
+        while (comparar_codigos(lista, arr[i], pivot) < 0) i++;
+        while (comparar_codigos(lista, arr[j], pivot) > 0) j--;
+        if (i <= j) {
+            int tmp = arr[i];
+            arr[i] = arr[j];
+            arr[j] = tmp;
+            i++; j--;
+        }
     }
 
-    #define DP(i, p, v) tabela[(i) * (max_peso + 1) * (max_vol + 1) + (p) * (max_vol + 1) + (v)]
+    if (left < j) quicksort_indices(lista, arr, left, j);
+    if (i < right) quicksort_indices(lista, arr, i, right);
+}
 
-    for (int i = 1; i <= total_pacotes; i++) {
-        int idx = i - 1; 
-        
-        int p_item = lista_pacotes[idx].peso;
-        int v_item = lista_pacotes[idx].vol;
-        double val_item = lista_pacotes[idx].valor;
-        int usado = lista_pacotes[idx].foi_usado;
+void resolver_mochila_2d(Veiculo caminhao, Pacote* lista, int total, FILE* saida) {
+    int P = caminhao.cap_peso;
+    int V = caminhao.cap_vol;
 
-        for (int p = 0; p <= max_peso; p++) {
-            for (int v = 0; v <= max_vol; v++) {
-                
-                if (usado) {
-                    DP(i, p, v) = DP(i - 1, p, v);
-                    continue;
-                }
+    double** DP = malloc((P + 1) * sizeof(double*));
+    int** escolha = malloc((P + 1) * sizeof(int*));
 
-                if (p_item <= p && v_item <= v) {
-                    double inclui = val_item + DP(i - 1, p - p_item, v - v_item);
-                    double n_inclui = DP(i - 1, p, v);
-                    DP(i, p, v) = max_double(inclui, n_inclui);
-                } else {
-                    DP(i, p, v) = DP(i - 1, p, v);
+    for (int p = 0; p <= P; p++) {
+        DP[p] = calloc(V + 1, sizeof(double));
+        escolha[p] = malloc((V + 1) * sizeof(int));
+        for (int v = 0; v <= V; v++) escolha[p][v] = -1;
+    }
+
+    for (int i = 0; i < total; i++) {
+        if (lista[i].foi_usado) continue;
+
+        int peso = lista[i].peso;
+        int vol  = lista[i].vol;
+        double val = lista[i].valor;
+
+        for (int p = P; p >= peso; p--) {
+            for (int v = V; v >= vol; v--) {
+                double novo = DP[p - peso][v - vol] + val;
+                if (novo > DP[p][v]) {
+                    DP[p][v] = novo;
+                    escolha[p][v] = i;
                 }
             }
         }
     }
 
-    int p_atual = max_peso;
-    int v_atual = max_vol;
-    double valor_final = DP(total_pacotes, max_peso, max_vol);
-    
-    int peso_oc = 0;
-    int vol_oc = 0;
-
-    int* escolhidos = (int*)malloc(total_pacotes * sizeof(int));
+    int p = P, v = V;
+    int* usados = malloc(total * sizeof(int));
     int qtd = 0;
 
-    for (int i = total_pacotes; i > 0; i--) {
-        int idx = i - 1;
-        if (!lista_pacotes[idx].foi_usado && 
-            DP(i, p_atual, v_atual) != DP(i - 1, p_atual, v_atual)) {
-            
-            escolhidos[qtd++] = idx;
-            lista_pacotes[idx].foi_usado = 1; 
-            
-            peso_oc += lista_pacotes[idx].peso;
-            vol_oc += lista_pacotes[idx].vol;
-            
-            p_atual -= lista_pacotes[idx].peso;
-            v_atual -= lista_pacotes[idx].vol;
-        }
+    while (p >= 0 && v >= 0) {
+        int idx = escolha[p][v];
+        if (idx < 0) break;
+
+        usados[qtd++] = idx;
+        lista[idx].foi_usado = 1;
+
+        p -= lista[idx].peso;
+        v -= lista[idx].vol;
     }
 
-    for (int i = 0; i < qtd - 1; i++) {
-        for (int j = 0; j < qtd - i - 1; j++) {
-            if (strcmp(lista_pacotes[escolhidos[j]].codigo, lista_pacotes[escolhidos[j+1]].codigo) > 0) {
-                int temp = escolhidos[j];
-                escolhidos[j] = escolhidos[j+1];
-                escolhidos[j+1] = temp;
-            }
-        }
+    if (qtd > 1) quicksort_indices(lista, usados, 0, qtd - 1);
+
+    int peso_oc = 0, vol_oc = 0;
+    double valor_final = DP[P][V];
+
+    for (int k = 0; k < qtd; k++) {
+        peso_oc += lista[usados[k]].peso;
+        vol_oc  += lista[usados[k]].vol;
     }
 
-    int perc_peso = (int)(((peso_oc * 100.0) / caminhao.cap_peso) + 0.5);
-    int perc_vol = (int)(((vol_oc * 100.0) / caminhao.cap_vol) + 0.5);
+    int perc_peso = (int)((peso_oc * 100.0 / caminhao.cap_peso) + 0.5);
+    int perc_vol  = (int)((vol_oc  * 100.0 / caminhao.cap_vol ) + 0.5);
 
-    fprintf(saida, "[%s]R$%.2f,%dKG(%d%%),%dL(%d%%)", 
-            caminhao.placa, 
-            valor_final, 
-            peso_oc, perc_peso, 
+    fprintf(saida, "[%s]R$%.2f,%dKG(%d%%),%dL(%d%%)",
+            caminhao.placa, valor_final,
+            peso_oc, perc_peso,
             vol_oc, perc_vol);
 
     if (qtd > 0) {
         fprintf(saida, "->");
         for (int k = 0; k < qtd; k++) {
-            fprintf(saida, "%s", lista_pacotes[escolhidos[k]].codigo);
+            fprintf(saida, "%s", lista[usados[k]].codigo);
             if (k < qtd - 1) fprintf(saida, ",");
         }
     }
     fprintf(saida, "\n");
 
-    free(tabela);
-    free(escolhidos);
-    #undef DP
+    for (int p2 = 0; p2 <= P; p2++) {
+        free(DP[p2]);
+        free(escolha[p2]);
+    }
+    free(DP);
+    free(escolha);
+    free(usados);
 }
 
 int main(int argc, char *argv[]) {
@@ -138,14 +138,14 @@ int main(int argc, char *argv[]) {
 
     int num_veiculos;
     fscanf(entrada, "%d", &num_veiculos);
-    Veiculo* frota = (Veiculo*)malloc(num_veiculos * sizeof(Veiculo));
+    Veiculo* frota = malloc(num_veiculos * sizeof(Veiculo));
     for(int i=0; i<num_veiculos; i++){
         fscanf(entrada, "%s %d %d", frota[i].placa, &frota[i].cap_peso, &frota[i].cap_vol);
     }
 
     int num_pacotes;
     fscanf(entrada, "%d", &num_pacotes);
-    Pacote* estoque = (Pacote*)malloc(num_pacotes * sizeof(Pacote));
+    Pacote* estoque = malloc(num_pacotes * sizeof(Pacote));
     for(int i=0; i<num_pacotes; i++){
         fscanf(entrada, "%s %lf %d %d", 
                estoque[i].codigo, &estoque[i].valor, &estoque[i].peso, &estoque[i].vol);
@@ -153,39 +153,29 @@ int main(int argc, char *argv[]) {
     }
 
     for(int i=0; i<num_veiculos; i++){
-        resolver_mochila_3d(frota[i], estoque, num_pacotes, saida);
+        resolver_mochila_2d(frota[i], estoque, num_pacotes, saida);
     }
 
-    double val_pend = 0;
-    int peso_pend = 0;
-    int vol_pend = 0;
+    int* pendentes = malloc(num_pacotes * sizeof(int));
     int qtd_pend = 0;
-    
-    int* pendentes_indices = (int*)malloc(num_pacotes * sizeof(int));
+    double val_pend = 0;
+    int peso_pend = 0, vol_pend = 0;
 
     for(int i=0; i<num_pacotes; i++){
         if(!estoque[i].foi_usado){
+            pendentes[qtd_pend++] = i;
             val_pend += estoque[i].valor;
             peso_pend += estoque[i].peso;
             vol_pend += estoque[i].vol;
-            pendentes_indices[qtd_pend++] = i;
         }
     }
 
-    for (int i = 0; i < qtd_pend - 1; i++) {
-        for (int j = 0; j < qtd_pend - i - 1; j++) {
-            if (strcmp(estoque[pendentes_indices[j]].codigo, estoque[pendentes_indices[j+1]].codigo) > 0) {
-                int temp = pendentes_indices[j];
-                pendentes_indices[j] = pendentes_indices[j+1];
-                pendentes_indices[j+1] = temp;
-            }
-        }
-    }
+    if (qtd_pend > 1) quicksort_indices(estoque, pendentes, 0, qtd_pend - 1);
 
     if (qtd_pend > 0) {
         fprintf(saida, "PENDENTE:R$%.2f,%dKG,%dL->", val_pend, peso_pend, vol_pend);
         for(int i=0; i<qtd_pend; i++){
-            fprintf(saida, "%s", estoque[pendentes_indices[i]].codigo);
+            fprintf(saida, "%s", estoque[pendentes[i]].codigo);
             if(i < qtd_pend - 1) fprintf(saida, ",");
         }
         fprintf(saida, "\n");
@@ -193,7 +183,7 @@ int main(int argc, char *argv[]) {
 
     free(frota);
     free(estoque);
-    free(pendentes_indices);
+    free(pendentes);
     fclose(entrada);
     fclose(saida);
 
