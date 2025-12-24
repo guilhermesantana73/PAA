@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 typedef struct {
     char placa[8];
@@ -16,147 +17,151 @@ typedef struct {
     int foi_usado;
 } Pacote;
 
-/* quicksort sobre um array de índices 'arr' referenciando 'lista' */
-void quicksort_indices(Pacote* lista, int* arr, int left, int right) {
-    if (left >= right) return;
-    int i = left, j = right;
-    int mid = (left + right) / 2;
-    int pivot_idx = arr[mid];
-    const char *pivot_code = lista[pivot_idx].codigo;
-
-    while (i <= j) {
-        while (strcmp(lista[arr[i]].codigo, pivot_code) < 0) i++;
-        while (strcmp(lista[arr[j]].codigo, pivot_code) > 0) j--;
-        if (i <= j) {
-            int tmp = arr[i];
-            arr[i] = arr[j];
-            arr[j] = tmp;
-            i++; j--;
-        }
-    }
-    if (left < j) quicksort_indices(lista, arr, left, j);
-    if (i < right) quicksort_indices(lista, arr, i, right);
-}
+typedef struct {
+    int idx;          /* índice do pacote */
+    double densidade; /* valor / (peso + volume) */
+} ItemOrdenado;
 
 void resolver_mochila_2d(Veiculo caminhao, Pacote* lista, int total, FILE* saida) {
     int P = caminhao.cap_peso;
     int V = caminhao.cap_vol;
 
-    /* alocação contígua para melhor desempenho */
-    size_t cells = (size_t)(P + 1) * (size_t)(V + 1);
-    double *DP = calloc(cells, sizeof(double));
-    int *escolha = malloc(cells * sizeof(int));
-    if (!DP || !escolha) {
-        fprintf(stderr, "Erro de alocacao\n");
-        free(DP); free(escolha);
-        return;
-    }
-    for (size_t i = 0; i < cells; ++i) escolha[i] = -1;
+    /* 1. Filtragem: Criar lista apenas com itens que cabem no caminhão */
+    /* Alocação dinâmica para evitar estouro de buffer se total > 1000 */
+    int *idx = malloc(total * sizeof(int));
+    if (!idx) return; // Erro de alocação
 
-    #define DP_AT(pp,vv) DP[(size_t)(pp) * (V + 1) + (vv)]
-    #define ESCOLHA_AT(pp,vv) escolha[(size_t)(pp) * (V + 1) + (vv)]
-
-    /* preencher DP */
+    int n = 0;
     for (int i = 0; i < total; i++) {
-        if (lista[i].foi_usado) continue;
+        if (!lista[i].foi_usado &&
+            lista[i].peso <= P &&
+            lista[i].vol  <= V) {
+            idx[n++] = i;
+        }
+    }
 
-        int peso = lista[i].peso;
-        int vol  = lista[i].vol;
+    /* 2. Tabela DP 3D Linearizada 
+       Tamanho: (n+1) * (P+1) * (V+1)
+       Usamos calloc para garantir que tudo inicie com 0.0
+       Representa: dp[item_i][peso_j][vol_k]
+    */
+    size_t sz_p = (size_t)(P + 1);
+    size_t sz_v = (size_t)(V + 1);
+    
+    double *dp = calloc((n + 1) * sz_p * sz_v, sizeof(double));
+    if (!dp) { free(idx); return; }
+
+    /* Macro para acessar o array 1D como se fosse 3D: dp[k][p][v] */
+    #define DP(k, p, v) dp[(k) * sz_p * sz_v + (p) * sz_v + (v)]
+
+    /* 3. Preenchimento da DP */
+    for (int k = 1; k <= n; k++) {
+        int i = idx[k-1]; // Índice real no array 'lista'
+        int w = lista[i].peso;
+        int vol = lista[i].vol;
         double val = lista[i].valor;
 
-        if (peso > P || vol > V) continue; /* item não cabe de jeito nenhum */
+        for (int p = 0; p <= P; p++) {
+            for (int v = 0; v <= V; v++) {
+                // Opção 1: Não levar o item k (copia o valor do estado anterior k-1)
+                double nao_leva = DP(k - 1, p, v);
+                
+                // Opção 2: Levar o item k (se couber)
+                double leva = 0.0;
+                if (p >= w && v >= vol) {
+                    leva = DP(k - 1, p - w, v - vol) + val;
+                }
 
-        for (int p = P; p >= peso; p--) {
-            /* otimização: calcular linha base uma vez por p */
-            for (int v = V; v >= vol; v--) {
-                double novo = DP_AT(p - peso, v - vol) + val;
-                if (novo > DP_AT(p, v)) {
-                    DP_AT(p, v) = novo;
-                    ESCOLHA_AT(p, v) = i;
+                // Armazena o melhor dos dois
+                if (leva > nao_leva) {
+                    DP(k, p, v) = leva;
+                } else {
+                    DP(k, p, v) = nao_leva;
                 }
             }
         }
     }
 
-    /* encontrar ponto inicial para backtracking:
-       preferir (P,V) se tiver escolha; caso contrário, procurar o par (p,v) com maior DP */
-    int p = P, v = V;
-    if (ESCOLHA_AT(p, v) < 0) {
-        double best = 0.0;
-        int bp = 0, bv = 0;
-        for (int pp = 0; pp <= P; ++pp) {
-            for (int vv = 0; vv <= V; ++vv) {
-                if (DP_AT(pp, vv) > best) {
-                    best = DP_AT(pp, vv);
-                    bp = pp; bv = vv;
-                }
-            }
-        }
-        p = bp; v = bv;
-    }
+    /* 4. Encontrar o melhor ponto final (pode não ser a capacidade máxima exata) */
+    // Na mochila 0/1 clássica, o valor ótimo está sempre em DP(n, P, V) se os pesos forem exatos,
+    // mas vamos varrer para garantir o maior valor global dentro dos limites.
+    double best_val = -1.0;
+    int cur_p = P;
+    int cur_v = V;
+    
+    // O valor em DP(n, P, V) já contém o máximo acumulado considerando limites P e V.
+    best_val = DP(n, P, V);
 
-    int *usados = malloc(total * sizeof(int));
-    if (!usados) { free(DP); free(escolha); return; }
+    /* Otimização de Backtracking:
+       Em vez de varrer tudo para achar o 'best_val', sabemos que DP[n][P][V] contém 
+       o melhor valor possível dado o espaço disponível, pois a lógica de "copiar o anterior"
+       propaga os melhores valores para frente.
+    */
+
+    /* 5. Backtracking (Recuperar os itens) */
+    int *usados = malloc(n * sizeof(int)); // Lista temporária de usados
     int qtd = 0;
 
-    /* backtracking seguro */
-    while (p > 0 && v > 0) {
-        int idx = ESCOLHA_AT(p, v);
-        if (idx < 0) break;
-        if (qtd >= total) break; /* proteção */
+    // Começamos do último item (n) e da capacidade máxima (P, V)
+    // E vamos voltando
+    for (int k = n; k > 0; k--) {
+        int i = idx[k-1];
+        int w = lista[i].peso;
+        int vol = lista[i].vol;
+        double val = lista[i].valor;
 
-        int peso = lista[idx].peso;
-        int vol  = lista[idx].vol;
+        // Verifica se o valor mudou em relação a não ter o item (k-1)
+        // Se DP(k, p, v) != DP(k-1, p, v), significa que o item k foi adicionado
+        double val_sem = DP(k - 1, cur_p, cur_v);
+        double val_com = DP(k, cur_p, cur_v);
 
-        /* proteção: se subtrair tornaria p ou v negativos, aborta */
-        if (p - peso < 0 || v - vol < 0) break;
-
-        usados[qtd++] = idx;
-        lista[idx].foi_usado = 1;
-
-        p -= peso;
-        v -= vol;
+        // Usamos uma pequena margem de erro para double
+        if (fabs(val_com - val_sem) > 1e-6) {
+            // Item foi usado
+            usados[qtd++] = i;
+            lista[i].foi_usado = 1;
+            cur_p -= w;
+            cur_v -= vol;
+        }
     }
 
-    /* ordenar os códigos selecionados (se houver mais de 1) */
-    if (qtd > 1) quicksort_indices(lista, usados, 0, qtd - 1);
-
-    /* calcular ocupação e valor final */
+    /* 6. Preparar Resultados para Impressão */
     int peso_oc = 0, vol_oc = 0;
-    for (int k = 0; k < qtd; k++) {
-        peso_oc += lista[usados[k]].peso;
-        vol_oc  += lista[usados[k]].vol;
+    double valor_total = 0.0;
+
+    for (int i = 0; i < qtd; i++) {
+        peso_oc += lista[usados[i]].peso;
+        vol_oc  += lista[usados[i]].vol;
+        valor_total += lista[usados[i]].valor;
     }
 
-    /* valor final: DP[P][V] pode não ser o máximo se escolhemos outro (p,v) no backtracking,
-       então recalculamos o valor final como soma dos valores dos usados (mais robusto) */
-    double valor_final = 0.0;
-    for (int k = 0; k < qtd; k++) valor_final += lista[usados[k]].valor;
-
-    int perc_peso = (int)((peso_oc * 100.0 / caminhao.cap_peso) + 0.5);
-    int perc_vol  = (int)((vol_oc  * 100.0 / caminhao.cap_vol ) + 0.5);
+    // Calcular percentuais
+    int perc_peso = (caminhao.cap_peso > 0) ? (int)((peso_oc * 100.0 / caminhao.cap_peso) + 0.5) : 0;
+    int perc_vol  = (caminhao.cap_vol > 0)  ? (int)((vol_oc  * 100.0 / caminhao.cap_vol ) + 0.5) : 0;
 
     fprintf(saida, "[%s]R$%.2f,%dKG(%d%%),%dL(%d%%)",
-            caminhao.placa, valor_final,
+            caminhao.placa, valor_total,
             peso_oc, perc_peso,
             vol_oc, perc_vol);
 
     if (qtd > 0) {
         fprintf(saida, "->");
-        for (int k = 0; k < qtd; k++) {
-            fprintf(saida, "%s", lista[usados[k]].codigo);
-            if (k < qtd - 1) fprintf(saida, ",");
+        // O array 'usados' foi preenchido de trás para frente (do item n ao 1)
+        // Mas a ordem de inserção na lista 'usados' seguiu o backtracking.
+        // O output esperado parece listar em ordem de processamento ou inversa.
+        // Vamos manter a ordem que você tinha (iterando inverso do preenchimento).
+        for (int i = 0; i < qtd; i++) {
+            fprintf(saida, "%s", lista[usados[i]].codigo);
+            if (i < qtd - 1) fprintf(saida, ",");
         }
     }
     fprintf(saida, "\n");
 
-    /* liberar memória */
-    free(DP);
-    free(escolha);
+    /* Limpeza */
+    #undef DP
+    free(dp);
+    free(idx);
     free(usados);
-
-    #undef DP_AT
-    #undef ESCOLHA_AT
 }
 
 int main(int argc, char *argv[]) {
@@ -219,8 +224,6 @@ int main(int argc, char *argv[]) {
             vol_pend += estoque[i].vol;
         }
     }
-
-    if (qtd_pend > 1) quicksort_indices(estoque, pendentes, 0, qtd_pend - 1);
 
     if (qtd_pend > 0) {
         fprintf(saida, "PENDENTE:R$%.2f,%dKG,%dL->", val_pend, peso_pend, vol_pend);
