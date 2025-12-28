@@ -3,28 +3,24 @@
 #include <string.h>
 #include <math.h>
 
-/* Estruturas de Dados */
 typedef struct {
-    char placa[8]; // 7 chars + \0
+    char placa[8];
     int cap_peso;
     int cap_vol;
 } Veiculo;
 
 typedef struct {
-    char codigo[14]; // 13 chars + \0
+    char codigo[14];
     double valor;
     int peso;
     int vol;
-    int foi_usado; // Flag para marcar se já foi carregado em algum caminhão
+    int foi_usado;
 } Pacote;
 
-/* * Função Principal da Lógica (Knapsack 2D com Recuperação de Caminho)
- */
 void resolver_mochila_2d(Veiculo caminhao, Pacote* lista, int total, FILE* saida) {
     int P = caminhao.cap_peso;
     int V = caminhao.cap_vol;
 
-    /* 1. Filtragem: Criar lista de indíces apenas com itens que cabem no veículo e não foram usados */
     int *idx = malloc((size_t)total * sizeof(int));
     if (!idx) {
         fprintf(stderr, "Erro de memoria (idx)\n");
@@ -40,14 +36,9 @@ void resolver_mochila_2d(Veiculo caminhao, Pacote* lista, int total, FILE* saida
         }
     }
 
-    /* * 2. Alocação Dinâmica da Tabela DP (Linearizada)
-     * Dimensões virtuais: [n+1][P+1][V+1]
-     * Usamos calloc para iniciar tudo com 0.0
-     */
     size_t sz_p = (size_t)(P + 1);
     size_t sz_v = (size_t)(V + 1);
     
-    // Proteção contra veículos com capacidade 0 ou sem itens
     if (n == 0 || P == 0 || V == 0) {
         fprintf(saida, "[%s]R$0.00,0KG(0%%),0L(0%%)\n", caminhao.placa);
         free(idx);
@@ -61,10 +52,8 @@ void resolver_mochila_2d(Veiculo caminhao, Pacote* lista, int total, FILE* saida
         return;
     }
 
-    /* Macro para acesso fácil: dp[k][p][v] */
     #define DP(k, p, v) dp[(k) * sz_p * sz_v + (p) * sz_v + (v)]
 
-    /* 3. Preenchimento da Tabela (Bottom-Up) */
     for (int k = 1; k <= n; k++) {
         int real_i = idx[k-1]; 
         int w = lista[real_i].peso;
@@ -73,16 +62,13 @@ void resolver_mochila_2d(Veiculo caminhao, Pacote* lista, int total, FILE* saida
 
         for (int p = 0; p <= P; p++) {
             for (int v = 0; v <= V; v++) {
-                // Opção A: Não levar o item k (mantém o valor anterior)
                 double nao_leva = DP(k - 1, p, v);
                 
-                // Opção B: Levar o item k (se couber)
                 double leva = 0.0;
                 if (p >= w && v >= vol) {
                     leva = DP(k - 1, p - w, v - vol) + val;
                 }
 
-                // Escolhe o melhor
                 if (leva > nao_leva) {
                     DP(k, p, v) = leva;
                 } else {
@@ -92,7 +78,6 @@ void resolver_mochila_2d(Veiculo caminhao, Pacote* lista, int total, FILE* saida
         }
     }
 
-    /* 4. Backtracking (Recuperação dos itens escolhidos) */
     int *usados = malloc((size_t)n * sizeof(int));
     if (!usados) {
         free(dp); free(idx); return;
@@ -102,7 +87,6 @@ void resolver_mochila_2d(Veiculo caminhao, Pacote* lista, int total, FILE* saida
     int cur_p = P;
     int cur_v = V;
 
-    // Percorre do último item analisado até o primeiro
     for (int k = n; k > 0; k--) {
         int real_i = idx[k-1];
         int w = lista[real_i].peso;
@@ -112,8 +96,6 @@ void resolver_mochila_2d(Veiculo caminhao, Pacote* lista, int total, FILE* saida
         double val_com_item = DP(k, cur_p, cur_v);
         double val_sem_item = DP(k - 1, cur_p, cur_v);
 
-        // Se o valor mudou ao considerar o item k, então ele foi escolhido
-        // Usamos uma tolerância pequena para float (1e-6)
         if (fabs(val_com_item - val_sem_item) > 1e-6) {
             usados[qtd++] = real_i;
             lista[real_i].foi_usado = 1;
@@ -122,7 +104,6 @@ void resolver_mochila_2d(Veiculo caminhao, Pacote* lista, int total, FILE* saida
         }
     }
 
-    /* 5. Calcular totais e imprimir */
     int peso_oc = 0, vol_oc = 0;
     double valor_total = 0.0;
 
@@ -142,10 +123,6 @@ void resolver_mochila_2d(Veiculo caminhao, Pacote* lista, int total, FILE* saida
 
     if (qtd > 0) {
         fprintf(saida, "->");
-        /* * CORREÇÃO DA ORDEM DE IMPRESSÃO:
-         * O backtracking insere na ordem (Último -> Primeiro).
-         * Para imprimir na ordem (Primeiro -> Último), percorremos o array 'usados' de trás para frente.
-         */
         for (int i = qtd - 1; i >= 0; i--) {
             fprintf(saida, "%s", lista[usados[i]].codigo);
             if (i > 0) fprintf(saida, ",");
@@ -161,7 +138,6 @@ void resolver_mochila_2d(Veiculo caminhao, Pacote* lista, int total, FILE* saida
 }
 
 int main(int argc, char *argv[]) {
-    /* Checagem de Argumentos */
     if (argc != 3) {
         fprintf(stderr, "Uso: %s <entrada.txt> <saida.txt>\n", argv[0]);
         return 1;
@@ -180,7 +156,6 @@ int main(int argc, char *argv[]) {
         return 1; 
     }
 
-    /* Leitura da Frota */
     int num_veiculos;
     if (fscanf(entrada, "%d", &num_veiculos) != 1) {
         fprintf(stderr, "Erro: Arquivo de entrada vazio ou formato invalido (num_veiculos).\n");
@@ -200,7 +175,6 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    /* Leitura do Estoque */
     int num_pacotes;
     if (fscanf(entrada, "%d", &num_pacotes) != 1) {
         fprintf(stderr, "Erro: Falha ao ler numero de pacotes.\n");
@@ -222,14 +196,12 @@ int main(int argc, char *argv[]) {
         estoque[i].foi_usado = 0;
     }
 
-    /* Processamento */
     printf("Iniciando processamento de %d veiculos e %d pacotes...\n", num_veiculos, num_pacotes);
     
     for (int i = 0; i < num_veiculos; i++) {
         resolver_mochila_2d(frota[i], estoque, num_pacotes, saida);
     }
 
-    /* Relatório de Pendentes */
     int* pendentes = malloc((size_t)num_pacotes * sizeof(int));
     if (pendentes) {
         int qtd_pend = 0;
@@ -258,7 +230,6 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Aviso: Falha ao alocar memoria para relatorio de pendentes.\n");
     }
 
-    /* Finalização */
     printf("Concluido! Verifique o arquivo: %s\n", argv[2]);
 
     free(frota);
