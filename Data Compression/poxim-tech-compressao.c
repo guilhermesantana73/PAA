@@ -20,8 +20,10 @@ typedef struct {
 typedef struct MinHeapNode {
     unsigned char dado;
     unsigned freq;
+    int is_folha;
     struct MinHeapNode *esq, *dir;
 } MinHeapNode;
+
 
 typedef struct MinHeap {
     unsigned tamanho;
@@ -100,7 +102,7 @@ int main(int argc, char *argv[]) {
         /* Liberação de memória */
         liberar_resultado(huf);
         liberar_resultado(rle);
-        
+
         free(dados);
     }
 
@@ -201,6 +203,61 @@ MinHeapNode* novo_no(unsigned char dado, unsigned freq) {
     return temp;
 }
 
+int comparar_folhas(const void *a, const void *b) {
+    MinHeapNode *n1 = *(MinHeapNode **)a;
+    MinHeapNode *n2 = *(MinHeapNode **)b;
+
+    if (n1->freq != n2->freq)
+        return n1->freq - n2->freq;
+
+    return n1->dado - n2->dado;
+}
+
+/* Função auxiliar para trocar ponteiros no array */
+void trocar_elem(MinHeapNode** a, MinHeapNode** b) {
+    MinHeapNode* t = *a;
+    *a = *b;
+    *b = t;
+}
+
+/* Verifica se o nó A deve vir antes do nó B.
+   Retorna 1 (Verdadeiro) se A < B.
+   Critério: Menor Frequência. Se empatar, Menor Byte (ASCII).
+*/
+int eh_menor(MinHeapNode* a, MinHeapNode* b) {
+    if (a->freq < b->freq) return 1;
+    if (a->freq == b->freq && a->dado < b->dado) return 1;
+    return 0;
+}
+
+/* Particionamento de Lomuto (Pivô é o último elemento) */
+int particao(MinHeapNode** arr, int baixo, int alto) {
+    MinHeapNode* pivo = arr[alto]; 
+    int i = (baixo - 1); 
+
+    for (int j = baixo; j <= alto - 1; j++) {
+        // Se o elemento atual é menor ou igual ao pivô
+        // Nota: Usamos nossa função 'eh_menor' para garantir a ordem estrita
+        if (eh_menor(arr[j], pivo) || 
+           (arr[j]->freq == pivo->freq && arr[j]->dado == pivo->dado)) {
+            i++; 
+            trocar_elem(&arr[i], &arr[j]);
+        }
+    }
+    trocar_elem(&arr[i + 1], &arr[alto]);
+    return (i + 1);
+}
+
+/* Função principal do Quicksort recursivo */
+void meu_quicksort(MinHeapNode** arr, int baixo, int alto) {
+    if (baixo < alto) {
+        int pi = particao(arr, baixo, alto);
+
+        meu_quicksort(arr, baixo, pi - 1);
+        meu_quicksort(arr, pi + 1, alto);
+    }
+}
+
 MinHeap* criar_min_heap(unsigned capacidade) {
     MinHeap* min_heap = (MinHeap*)malloc(sizeof(MinHeap));
     min_heap->tamanho = 0;
@@ -254,31 +311,62 @@ int e_tamanho_um(MinHeap* min_heap) {
     return (min_heap->tamanho == 1);
 }
 
-MinHeapNode* construir_arvore_huffman(unsigned char dados[], int freq[], int tamanho) {
-    MinHeapNode *esq, *dir, *top;
-    MinHeap* min_heap = criar_min_heap(tamanho);
-
-    for (int i = 0; i < tamanho; ++i)
-        inserir_min_heap(min_heap, novo_no(dados[i], freq[i]));
-
-    while (!e_tamanho_um(min_heap)) {
-        esq = extrair_min(min_heap);
-        dir = extrair_min(min_heap);
-        /* '$' é valor interno especial */
-        top = novo_no('$', esq->freq + dir->freq);
-        top->esq = esq;
-        top->dir = dir;
-        inserir_min_heap(min_heap, top);
+MinHeapNode* construir_arvore_huffman_linear(
+    unsigned char dados[],
+    int freq[],
+    int tamanho
+) {
+    /* 1. Criar folhas */
+    MinHeapNode *folhas[256];
+    for (int i = 0; i < tamanho; i++) {
+        folhas[i] = novo_no(dados[i], freq[i]);
+        folhas[i]->is_folha = 1;
     }
 
-    MinHeapNode* raiz = extrair_min(min_heap);
-    
-    /* Limpeza da estrutura do Heap (não dos nós da árvore) */
-    free(min_heap->array);
-    free(min_heap);
-    
-    return raiz;
+    /* 2. Ordenar folhas */
+    meu_quicksort(folhas, 0, tamanho - 1);
+
+    /* 3. Vetor de nós internos */
+    MinHeapNode *internos[256];
+    int i = 0, j = 0, k = 0;
+
+    /* 4. Construção linear */
+    while ((tamanho - i) + (k - j) > 1) {
+
+        MinHeapNode *x, *y;
+
+        /* Seleciona menor */
+        if (i < tamanho &&
+           (j >= k || folhas[i]->freq <= internos[j]->freq)) {
+            x = folhas[i++];
+        } else {
+            x = internos[j++];
+        }
+
+        /* Seleciona segundo menor */
+        if (i < tamanho &&
+           (j >= k || folhas[i]->freq <= internos[j]->freq)) {
+            y = folhas[i++];
+        } else {
+            y = internos[j++];
+        }
+
+        /* Cria nó interno */
+        MinHeapNode *pai = novo_no('$', x->freq + y->freq);
+        pai->esq = x;
+        pai->dir = y;
+        pai->is_folha = 0;
+
+        internos[k++] = pai;
+    }
+
+    /* Raiz final */
+    if (k > 0)
+        return internos[k - 1];
+    else
+        return folhas[0];
 }
+
 
 /* Gera a tabela de códigos (strings de "0" e "1") */
 void gerar_codigos(MinHeapNode* raiz, int arr[], int topo, char* codigos[256]) {
@@ -343,7 +431,11 @@ ResultadoCompressao* executar_huffman(ByteBuffer* entrada) {
         tabela_codigos[dados_unicos[0]] = strdup("0"); 
     } else {
         /* Constrói árvore e gera códigos */
-        MinHeapNode* raiz = construir_arvore_huffman(dados_unicos, freqs_unicas, tamanho_unicos);
+        MinHeapNode* raiz = construir_arvore_huffman_linear(
+            dados_unicos,
+            freqs_unicas,
+            tamanho_unicos
+        );
         int arr[MAX_TREE_HT];
         gerar_codigos(raiz, arr, 0, tabela_codigos);
         liberar_arvore_huffman(raiz);
@@ -356,11 +448,7 @@ ResultadoCompressao* executar_huffman(ByteBuffer* entrada) {
     for (int i = 0; i < entrada->tamanho; i++) {
         char* codigo = tabela_codigos[entrada->bytes[i]];
         for (int j = 0; codigo[j] != '\0'; j++) {
-            /* Desloca byte atual para esquerda e insere o bit (0 ou 1) */
-            byte_atual = byte_atual << 1;
-            if (codigo[j] == '1') {
-                byte_atual = byte_atual | 1;
-            }
+            byte_atual = (byte_atual << 1) | (codigo[j] == '1' ? 1 : 0);
             contador_bits++;
 
             /* Se completou 8 bits, escreve no buffer */
