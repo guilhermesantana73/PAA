@@ -22,6 +22,7 @@ typedef struct {
 typedef struct MinHeapNode {
     unsigned char dado;
     unsigned freq;
+    int is_folha;
     struct MinHeapNode *esq, *dir;
 } MinHeapNode;
 
@@ -172,6 +173,8 @@ void imprimir_resultado(FILE* saida, int id, ResultadoCompressao* r) {
 */
 int eh_prioritario(MinHeapNode* a, MinHeapNode* b) {
     if (a->freq < b->freq) return 1;
+    /* Se frequências iguais, menor ASCII tem prioridade.
+       Isso faz com que o nó Interno ('\0') ganhe de Folhas ('A') no empate */
     if (a->freq == b->freq && a->dado < b->dado) return 1;
     return 0;
 }
@@ -208,10 +211,11 @@ void meu_quicksort(MinHeapNode** arr, int baixo, int alto) {
 /* ================= IMPLEMENTAÇÃO MIN-HEAP (ÁRVORE PADRÃO) ================= */
 
 MinHeapNode* novo_no(unsigned char dado, unsigned freq) {
-    MinHeapNode* temp = (MinHeapNode*)malloc(sizeof(MinHeapNode));
+    MinHeapNode* temp = malloc(sizeof(MinHeapNode));
     temp->esq = temp->dir = NULL;
     temp->dado = dado;
     temp->freq = freq;
+    temp->is_folha = (dado != '\0');
     return temp;
 }
 
@@ -284,27 +288,37 @@ MinHeapNode* construir_arvore_huffman(unsigned char dados[], int freq[], int tam
     }
 
     /* 3. Ordenar entrada (Requisito do professor + Determinismo) */
-    meu_quicksort(nos_iniciais, 0, tamanho - 1);
+    // meu_quicksort(nos_iniciais, 0, tamanho - 1);
 
     /* 4. Popular o Heap */
     for (int i = 0; i < tamanho; ++i) {
-        inserir_min_heap(min_heap, nos_iniciais[i]);
+        MinHeapNode* no = novo_no(dados[i], freq[i]);
+        inserir_min_heap(min_heap, no);
     }
-    free(nos_iniciais); 
+    //free(nos_iniciais); 
 
     /* 5. Algoritmo Padrão de Huffman (Loop while size > 1) */
     while (!e_tamanho_um(min_heap)) {
-        // Extrai os dois menores
-        esq = extrair_min(min_heap);
-        dir = extrair_min(min_heap);
+        MinHeapNode* a = extrair_min(min_heap);
+        MinHeapNode* b = extrair_min(min_heap);
 
-        // Cria nó interno (soma das frequências)
-        top = novo_no('$', esq->freq + dir->freq);
-        top->esq = esq;
-        top->dir = dir;
+    /* GARANTIA DE ORDEM DETERMINÍSTICA */
+        if (eh_prioritario(a, b)) {
+            esq = a;
+            dir = b;
+        } else {
+            esq = b;
+            dir = a;
+        }
 
-        inserir_min_heap(min_heap, top);
-    }
+    top = novo_no('\0', esq->freq + dir->freq);
+    top->is_folha = 0;
+    top->esq = esq;
+    top->dir = dir;
+
+    inserir_min_heap(min_heap, top);
+}
+
 
     // A sobra é a raiz
     MinHeapNode* raiz = extrair_min(min_heap);
