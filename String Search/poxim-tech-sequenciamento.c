@@ -195,18 +195,19 @@ int main(int argc, char *argv[]) {
 
         if (genes_detectados > 0) {
             int prob = (int)round(
-                (double)genes_detectados /
-                doencas[i].num_genes * 100.0
+                (double)genes_detectados * 100.0 /
+                doencas[i].num_genes
             );
 
             if (prob > 0) {
                 strcpy(resultados[total_resultados].codigo,
-                       doencas[i].codigo);
+                    doencas[i].codigo);
                 resultados[total_resultados].prob = prob;
                 resultados[total_resultados].ordem = i;
                 total_resultados++;
             }
         }
+
     }
 
     /* ===================== ORDENAÇÃO ESTÁVEL ===================== */
