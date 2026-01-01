@@ -213,13 +213,17 @@ int main(int argc, char *argv[]) {
 
     for (int i = 0; i < total_resultados; i++) {
         for (int j = i + 1; j < total_resultados; j++) {
-            if (resultados[j].prob > resultados[i].prob) {
+            if (resultados[j].prob > resultados[i].prob ||
+            (resultados[j].prob == resultados[i].prob &&
+                resultados[j].ordem < resultados[i].ordem)) {
+
                 Resultado tmp = resultados[i];
                 resultados[i] = resultados[j];
                 resultados[j] = tmp;
             }
         }
     }
+
 
     /* ===================== SAÍDA ===================== */
 
