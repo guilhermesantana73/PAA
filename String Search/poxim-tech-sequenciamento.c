@@ -13,7 +13,7 @@
 
 /* ===================== HASH TABLE ===================== */
 
-#define HASH_SIZE 131071  /* primo > 2 * 45000 */
+#define HASH_SIZE 131071
 
 typedef struct Node {
     char *str;
@@ -83,41 +83,69 @@ typedef struct {
 
 /* ===================== MAIN ===================== */
 
-int main(void) {
-    int k;
-    char DNA[MAX_DNA];
-    int M;
+int main(int argc, char *argv[]) {
 
-    if (scanf("%d", &k) != 1) return 1;
-    if (scanf("%s", DNA) != 1) return 1;
-    if (scanf("%d", &M) != 1) return 1;
+    if (argc != 3) {
+        fprintf(stderr,
+            "Uso: %s <arquivo_entrada> <arquivo_saida>\n",
+            argv[0]);
+        return EXIT_FAILURE;
+    }
+
+    FILE *fin = fopen(argv[1], "r");
+    if (!fin) {
+        perror("Erro ao abrir arquivo de entrada");
+        return EXIT_FAILURE;
+    }
+
+    FILE *fout = fopen(argv[2], "w");
+    if (!fout) {
+        perror("Erro ao abrir arquivo de saída");
+        fclose(fin);
+        return EXIT_FAILURE;
+    }
+
+    int k, M;
+    char DNA[MAX_DNA];
+
+    fscanf(fin, "%d", &k);
+    fscanf(fin, "%s", DNA);
+    fscanf(fin, "%d", &M);
 
     if (M > MAX_DOENCAS) {
-        fprintf(stderr, "Erro: numero de doencas excede MAX_DOENCAS\n");
-        return 1;
+        fprintf(stderr, "Erro: numero de doencas excede limite\n");
+        fclose(fin);
+        fclose(fout);
+        return EXIT_FAILURE;
     }
 
     int nDNA = strlen(DNA);
 
-    /* ===== ALOCAÇÃO NO HEAP (CRÍTICA) ===== */
+    /* ===== ALOCAÇÃO NO HEAP ===== */
 
     Doenca *doencas = malloc(sizeof(Doenca) * M);
     if (!doencas) {
         perror("malloc");
-        return 1;
+        fclose(fin);
+        fclose(fout);
+        return EXIT_FAILURE;
     }
 
     for (int i = 0; i < M; i++) {
-        scanf("%s %d", doencas[i].codigo, &doencas[i].num_genes);
+        fscanf(fin, "%s %d",
+               doencas[i].codigo,
+               &doencas[i].num_genes);
 
         if (doencas[i].num_genes > MAX_GENES) {
             fprintf(stderr, "Erro: numero de genes excede MAX_GENES\n");
             free(doencas);
-            return 1;
+            fclose(fin);
+            fclose(fout);
+            return EXIT_FAILURE;
         }
 
         for (int j = 0; j < doencas[i].num_genes; j++) {
-            scanf("%s", doencas[i].genes[j]);
+            fscanf(fin, "%s", doencas[i].genes[j]);
         }
     }
 
@@ -167,7 +195,8 @@ int main(void) {
 
         if (genes_detectados > 0) {
             int prob = (int)round(
-                (double)genes_detectados / doencas[i].num_genes * 100.0
+                (double)genes_detectados /
+                doencas[i].num_genes * 100.0
             );
 
             if (prob > 0) {
@@ -195,15 +224,16 @@ int main(void) {
     /* ===================== SAÍDA ===================== */
 
     for (int i = 0; i < total_resultados; i++) {
-        printf("%s->%d%%\n",
-               resultados[i].codigo,
-               resultados[i].prob);
+        fprintf(fout, "%s->%d%%\n",
+                resultados[i].codigo,
+                resultados[i].prob);
     }
 
     /* ===================== LIMPEZA ===================== */
 
     free(doencas);
-    /* (hash não precisa ser liberada para o programa terminar corretamente) */
+    fclose(fin);
+    fclose(fout);
 
-    return 0;
+    return EXIT_SUCCESS;
 }
