@@ -172,11 +172,20 @@ void imprimir_resultado(FILE* saida, int id, ResultadoCompressao* r) {
    2. Desempate: Menor valor ASCII.
 */
 int eh_prioritario(MinHeapNode* a, MinHeapNode* b) {
+    /* 1. Menor Frequência ganha */
     if (a->freq < b->freq) return 1;
-    /* Se frequências iguais, menor ASCII tem prioridade.
-       Isso faz com que o nó Interno ('\0') ganhe de Folhas ('A') no empate */
-    if (a->freq == b->freq && a->dado < b->dado) return 1;
-    return 0;
+    if (a->freq > b->freq) return 0;
+
+    /* 2. Empate de Frequência: Nó Interno ganha da Folha 
+       (Isso garante o início F8...) */
+    if (!a->is_folha && b->is_folha) return 1; 
+    if (a->is_folha && !b->is_folha) return 0;
+
+    /* 3. Empate Total (Folha vs Folha OU Interno vs Interno):
+       INVERTER AQUI: De '<' para '>'.
+       Se tiverem a mesma frequência e tipo, o de MAIOR valor ASCII ganha.
+       Isso deve transformar o CD em FD. */
+    return (a->dado > b->dado);
 }
 
 void trocar_elem_array(MinHeapNode** a, MinHeapNode** b) {
@@ -215,7 +224,7 @@ MinHeapNode* novo_no(unsigned char dado, unsigned freq) {
     temp->esq = temp->dir = NULL;
     temp->dado = dado;
     temp->freq = freq;
-    temp->is_folha = (dado != '\0');
+    temp->is_folha = 1;
     return temp;
 }
 
@@ -277,53 +286,34 @@ void inserir_min_heap(MinHeap* min_heap, MinHeapNode* node) {
 
 MinHeapNode* construir_arvore_huffman(unsigned char dados[], int freq[], int tamanho) {
     MinHeapNode *esq, *dir, *top;
-
-    /* 1. Criar Min Heap */
     MinHeap* min_heap = criar_min_heap(tamanho);
 
-    /* 2. Criar array de nós iniciais */
-    MinHeapNode** nos_iniciais = (MinHeapNode**)malloc(tamanho * sizeof(MinHeapNode*));
-    for (int i = 0; i < tamanho; ++i) {
-        nos_iniciais[i] = novo_no(dados[i], freq[i]);
-    }
-
-    /* 3. Ordenar entrada (Requisito do professor + Determinismo) */
-    // meu_quicksort(nos_iniciais, 0, tamanho - 1);
-
-    /* 4. Popular o Heap */
+    /* 1. Cria nós iniciais (Folhas) e insere direto */
+    /* NÃO use quicksort aqui. A ordem de inserção deve ser ASCII natural (0..255) */
     for (int i = 0; i < tamanho; ++i) {
         MinHeapNode* no = novo_no(dados[i], freq[i]);
         inserir_min_heap(min_heap, no);
     }
-    //free(nos_iniciais); 
 
-    /* 5. Algoritmo Padrão de Huffman (Loop while size > 1) */
+    /* 2. Loop principal */
     while (!e_tamanho_um(min_heap)) {
-        MinHeapNode* a = extrair_min(min_heap);
-        MinHeapNode* b = extrair_min(min_heap);
+        /* Extrai os dois menores. 
+           Graças ao 'eh_prioritario', se houver empate Folha vs Interno,
+           a Folha sairá primeiro (esq). */
+        esq = extrair_min(min_heap);
+        dir = extrair_min(min_heap);
 
-    /* GARANTIA DE ORDEM DETERMINÍSTICA */
-        if (eh_prioritario(a, b)) {
-            esq = a;
-            dir = b;
-        } else {
-            esq = b;
-            dir = a;
-        }
+        /* Cria nó interno */
+        top = novo_no('\0', esq->freq + dir->freq);
+        top->is_folha = 0; /* IMPORTANTE: Marca como interno */
+        top->esq = esq;    /* Menor/Folha vai para a Esquerda (0) */
+        top->dir = dir;    /* Maior/Interno vai para a Direita (1) */
 
-    top = novo_no('\0', esq->freq + dir->freq);
-    top->is_folha = 0;
-    top->esq = esq;
-    top->dir = dir;
+        inserir_min_heap(min_heap, top);
+    }
 
-    inserir_min_heap(min_heap, top);
-}
-
-
-    // A sobra é a raiz
     MinHeapNode* raiz = extrair_min(min_heap);
     
-    // Limpa a estrutura do heap (os nós da árvore ficam)
     free(min_heap->array);
     free(min_heap);
     
